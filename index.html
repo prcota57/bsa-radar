@@ -18,7 +18,7 @@
     flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
     gap: 22px; padding: 24px; text-align: center;
   }
-  #levelScreen h1 { font-size: 24px; margin: 0 0 4px; }
+  #levelScreen h1 { font-size: 26px; margin: 0 0 4px; }
   #levelScreen p { color: #9fc9ab; margin: 0 0 12px; font-size: 15px; }
   .levelBtn {
     width: 100%; max-width: 340px; padding: 22px; border-radius: 18px; border: none;
@@ -30,55 +30,36 @@
   #btnAvancado { background: linear-gradient(135deg,#c0392b,#8e2317); }
 
   /* ---------- Tela principal ---------- */
-  #mainScreen { flex: 1; display: none; flex-direction: column; position: relative; }
-  #camWrap { flex: 1; position: relative; overflow: hidden; background: #000; }
-  video { width: 100%; height: 100%; object-fit: cover; }
-
-  #roiBox {
-    position: absolute; border: 3px solid #21e065; border-radius: 8px;
-    box-shadow: 0 0 0 2000px rgba(0,0,0,0.35);
-    touch-action: none;
-  }
-  .handle {
-    position: absolute; width: 26px; height: 26px; background: #21e065; border-radius: 50%;
-    border: 3px solid #0b1f14; touch-action: none;
-  }
-  #h-nw { top:-13px; left:-13px; } #h-ne { top:-13px; right:-13px; }
-  #h-sw { bottom:-13px; left:-13px; } #h-se { bottom:-13px; right:-13px; }
-
+  #mainScreen { flex: 1; display: none; flex-direction: column; }
   #topBar {
-    position: absolute; top: 0; left: 0; right: 0; display: flex; justify-content: space-between;
-    align-items: center; padding: 10px 12px; z-index: 5;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: calc(env(safe-area-inset-top) + 12px) 16px 12px;
   }
-  .pill {
-    background: rgba(0,0,0,0.55); border-radius: 999px; padding: 8px 14px; font-size: 13px; font-weight: 600;
-  }
-  #trocarNivel { background: rgba(0,0,0,0.55); border: none; color: #fff; border-radius: 999px; padding: 8px 14px; font-size: 13px; }
+  .pill { background: rgba(255,255,255,0.08); border-radius: 999px; padding: 8px 14px; font-size: 13px; font-weight: 600; }
+  #trocarNivel { background: rgba(255,255,255,0.08); border: none; color: #fff; border-radius: 999px; padding: 8px 14px; font-size: 13px; }
 
-  #readingBar {
-    position: absolute; bottom: 0; left: 0; right: 0; z-index: 5;
-    background: rgba(8,20,13,0.92); padding: 14px 14px calc(14px + env(safe-area-inset-bottom));
+  #centerStage {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 20px; gap: 18px; text-align: center;
+  }
+  #micIcon {
+    width: 140px; height: 140px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 56px; background: radial-gradient(circle, rgba(33,224,101,0.25), rgba(33,224,101,0.02));
+    border: 3px solid #21e065; transition: transform .15s ease;
+  }
+  #micIcon.pulse { transform: scale(1.08); box-shadow: 0 0 40px rgba(33,224,101,0.5); }
+  #statusText { font-size: 17px; color: #9fc9ab; min-height: 24px; }
+  #lastReading { font-size: 16px; min-height: 50px; }
+  #lastReading b { font-size: 30px; display:block; margin-bottom:2px; }
+  #transcriptDebug { font-size: 12px; color: #5f8a6d; min-height: 16px; }
+
+  #bottomBar {
+    padding: 14px 16px calc(14px + env(safe-area-inset-bottom));
     display: flex; flex-direction: column; gap: 10px;
   }
-  #lastReading { font-size: 15px; text-align: center; color: #9fc9ab; min-height: 20px; }
-  #lastReading b { color: #fff; font-size: 22px; }
-
-  .row { display: flex; gap: 10px; }
-  button.action {
-    flex: 1; padding: 14px; border-radius: 14px; border: none; font-size: 16px; font-weight: 700; color: #fff;
-  }
-  #btnStart { background: #21e065; color: #06180d; }
-  #btnStart.stop { background: #c0392b; color: #fff; }
-  #btnManual { background: #2b3d33; }
-
-  #manualPanel {
-    display: none; gap: 10px; align-items: center;
-  }
-  #manualPanel input {
-    flex: 1; padding: 12px; border-radius: 12px; border: none; font-size: 18px; text-align: center;
-  }
-  #manualPanel button { padding: 12px 18px; border-radius: 12px; border: none; background:#21e065; font-weight:700; }
-
+  button.action { padding: 16px; border-radius: 14px; border: none; font-size: 17px; font-weight: 700; color: #fff; }
+  #btnListen { background: #21e065; color: #06180d; }
+  #btnListen.stop { background: #c0392b; color: #fff; }
   #hint { font-size: 12px; color: #7fa98c; text-align: center; }
 </style>
 </head>
@@ -96,48 +77,34 @@
 
   <!-- Tela principal -->
   <div id="mainScreen">
-    <div id="camWrap">
-      <video id="video" autoplay playsinline muted></video>
-      <div id="roiBox">
-        <div class="handle" id="h-nw"></div>
-        <div class="handle" id="h-ne"></div>
-        <div class="handle" id="h-sw"></div>
-        <div class="handle" id="h-se"></div>
-      </div>
-      <div id="topBar">
-        <div class="pill" id="nivelPill">Nível: —</div>
-        <button id="trocarNivel">Trocar nível</button>
-      </div>
+    <div id="topBar">
+      <div class="pill" id="nivelPill">Nível: —</div>
+      <button id="trocarNivel">Trocar nível</button>
     </div>
-    <div id="readingBar">
-      <div id="lastReading">Ajuste a caixa verde sobre o número do radar e toque em Iniciar leitura</div>
-      <div class="row">
-        <button class="action" id="btnStart">▶️ Iniciar leitura</button>
-        <button class="action" id="btnManual">⌨️ Digitar</button>
-      </div>
-      <div id="manualPanel">
-        <input type="number" id="manualInput" placeholder="km/h" inputmode="numeric">
-        <button id="manualGo">OK</button>
-      </div>
-      <div id="hint">Celular fixo no tripé apontando pro visor do radar</div>
+    <div id="centerStage">
+      <div id="micIcon">🎤</div>
+      <div id="statusText">Toque em "Iniciar" e encoste o celular perto do radar</div>
+      <div id="lastReading"></div>
+      <div id="transcriptDebug"></div>
+    </div>
+    <div id="bottomBar">
+      <button class="action" id="btnListen">▶️ Iniciar</button>
+      <div id="hint">Celular perto do alto-falante do radar · som sai pela caixa Bluetooth</div>
     </div>
   </div>
 
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.5/dist/tesseract.min.js"></script>
 <script>
 (function(){
   "use strict";
 
   // ---------------- Configuração dos níveis ----------------
-  // breakpoints = [b0,b1,b2,b3] definem 5 faixas: <b0, b0-b1, b1-b2, b2-b3, >b3
   const LEVELS = {
     iniciante:      { label: "Iniciante",      breakpoints: [10, 15, 20, 25] },
     intermediario:  { label: "Intermediário",  breakpoints: [20, 30, 40, 50] },
     avancado:       { label: "Avançado",       breakpoints: [35, 45, 60, 75] }
   };
-
   const PHRASES = [
     "Vamos lá, você consegue!",
     "Continue tentando!",
@@ -145,14 +112,12 @@
     "Excelente!",
     "Uau, sensacional!"
   ];
-
   let currentLevel = null;
 
   // ---------------- Áudio ----------------
   const AudioCtx = window.AudioContext || window.webkitAudioContext;
   const actx = new AudioCtx();
   let palmasBuffer = null;
-
   async function loadPalmas(){
     try {
       const resp = await fetch("https://raw.githubusercontent.com/prcota57/bsa-alerta/main/sounds/palmas-simples.wav");
@@ -173,8 +138,6 @@
     src.start();
     return buffer.duration / (rate||1);
   }
-
-  // som leve tipo "quase" - dois tons suaves ascendentes
   function playQuase(){
     const now = actx.currentTime;
     [440, 550].forEach((freq, i) => {
@@ -191,11 +154,9 @@
     });
     return 0.45;
   }
-
-  // fanfarra ascendente pra comemoração
   function playFanfarra(){
     const now = actx.currentTime;
-    const notes = [523.25, 659.25, 783.99, 1046.5]; // C E G C
+    const notes = [523.25, 659.25, 783.99, 1046.5];
     notes.forEach((freq, i) => {
       const osc = actx.createOscillator();
       const gain = actx.createGain();
@@ -211,7 +172,6 @@
     });
     return notes.length*0.11 + 0.4;
   }
-
   function speak(text){
     try {
       const u = new SpeechSynthesisUtterance(text);
@@ -233,6 +193,7 @@
     return 4;
   }
 
+  const lastReading = document.getElementById("lastReading");
   function triggerFeedback(speed){
     if (!currentLevel) return;
     const tier = getTier(speed, currentLevel);
@@ -242,211 +203,155 @@
     else if (tier === 2) soundDuration = playBuffer(palmasBuffer, 1, 1);
     else if (tier === 3) soundDuration = playBuffer(palmasBuffer, 1.3, 1.08);
     else if (tier === 4) { soundDuration = playFanfarra(); playBuffer(palmasBuffer, 1.2, 1); }
-
     setTimeout(() => speak(PHRASES[tier]), Math.max(soundDuration*1000, 0) + 120);
+    lastReading.innerHTML = `<b>${speed} km/h</b>${PHRASES[tier]}`;
+  }
 
-    lastReading.innerHTML = `Última leitura: <b>${speed} km/h</b> — ${PHRASES[tier]}`;
+  // ---------------- Parser de números em inglês ----------------
+  const WORD_NUM = {
+    zero:0, oh:0, one:1, two:2, three:3, four:4, five:5, six:6, seven:7, eight:8, nine:9,
+    ten:10, eleven:11, twelve:12, thirteen:13, fourteen:14, fifteen:15, sixteen:16,
+    seventeen:17, eighteen:18, nineteen:19,
+    twenty:20, thirty:30, forty:40, fourty:40, fifty:50, sixty:60, seventy:70, eighty:80, ninety:90,
+    hundred:100
+  };
+
+  function parseSpeedFromText(text){
+    const clean = text.toLowerCase().replace(/[^a-z0-9\s]/g,"").trim();
+    if (!clean) return null;
+    const words = clean.split(/\s+/);
+    if (words.length > 6) return null; // frase longa demais, provavelmente não é o radar
+
+    // 1) tenta achar dígitos diretos, ex: "50" ou "fifty (50)"
+    const digitMatch = clean.match(/\d+/);
+    if (digitMatch){
+      const v = parseInt(digitMatch[0], 10);
+      if (v >= 0 && v <= 150) return v;
+    }
+
+    // 2) tenta compor a partir de palavras numéricas em inglês
+    let total = 0, current = 0, found = false;
+    for (const w of words){
+      if (w in WORD_NUM){
+        found = true;
+        const val = WORD_NUM[w];
+        if (val === 100){ current = (current || 1) * 100; }
+        else { current += val; }
+      }
+    }
+    total = current;
+    if (found && total >= 0 && total <= 150) return total;
+    return null;
   }
 
   // ---------------- Navegação de tela ----------------
   const levelScreen = document.getElementById("levelScreen");
   const mainScreen = document.getElementById("mainScreen");
   const nivelPill = document.getElementById("nivelPill");
-  const lastReading = document.getElementById("lastReading");
+  const statusText = document.getElementById("statusText");
+  const transcriptDebug = document.getElementById("transcriptDebug");
+  const micIcon = document.getElementById("micIcon");
 
   function chooseLevel(key){
     currentLevel = key;
     nivelPill.textContent = "Nível: " + LEVELS[key].label;
     levelScreen.style.display = "none";
     mainScreen.style.display = "flex";
-    startCamera();
   }
-
   document.getElementById("btnIniciante").onclick = () => chooseLevel("iniciante");
   document.getElementById("btnIntermediario").onclick = () => chooseLevel("intermediario");
   document.getElementById("btnAvancado").onclick = () => chooseLevel("avancado");
   document.getElementById("trocarNivel").onclick = () => {
-    stopReading();
+    stopListening();
     mainScreen.style.display = "none";
     levelScreen.style.display = "flex";
   };
 
-  // ---------------- Câmera ----------------
-  const video = document.getElementById("video");
-  async function startCamera(){
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
-        audio: false
-      });
-      video.srcObject = stream;
-    } catch(e){
-      alert("Não consegui acessar a câmera. Verifique a permissão do navegador.");
-      console.error(e);
-    }
-  }
-
-  // ---------------- Caixa arrastável (ROI) ----------------
-  const roiBox = document.getElementById("roiBox");
-  const camWrap = document.getElementById("camWrap");
-
-  function setRoiDefault(){
-    const w = camWrap.clientWidth, h = camWrap.clientHeight;
-    const bw = w * 0.55, bh = h * 0.22;
-    roiBox.style.left = (w-bw)/2 + "px";
-    roiBox.style.top = (h-bh)/2 + "px";
-    roiBox.style.width = bw + "px";
-    roiBox.style.height = bh + "px";
-  }
-  window.addEventListener("resize", setRoiDefault);
-  setTimeout(setRoiDefault, 300);
-
-  function enableDrag(el, onMove){
-    let startX, startY, startRect;
-    el.addEventListener("touchstart", (e) => {
-      const t = e.touches[0];
-      startX = t.clientX; startY = t.clientY;
-      startRect = { left: roiBox.offsetLeft, top: roiBox.offsetTop, width: roiBox.offsetWidth, height: roiBox.offsetHeight };
-      e.stopPropagation();
-    }, {passive:true});
-    el.addEventListener("touchmove", (e) => {
-      const t = e.touches[0];
-      const dx = t.clientX - startX, dy = t.clientY - startY;
-      onMove(dx, dy, startRect);
-      e.preventDefault(); e.stopPropagation();
-    }, {passive:false});
-  }
-
-  // mover a caixa inteira
-  enableDrag(roiBox, (dx, dy, r) => {
-    const maxLeft = camWrap.clientWidth - r.width;
-    const maxTop = camWrap.clientHeight - r.height;
-    roiBox.style.left = Math.min(Math.max(0, r.left+dx), maxLeft) + "px";
-    roiBox.style.top = Math.min(Math.max(0, r.top+dy), maxTop) + "px";
-  });
-
-  function enableCornerDrag(id, corner){
-    const handle = document.getElementById(id);
-    enableDrag(handle, (dx, dy, r) => {
-      let {left, top, width, height} = r;
-      if (corner.includes("e")) width = Math.max(60, r.width + dx);
-      if (corner.includes("s")) height = Math.max(30, r.height + dy);
-      if (corner.includes("w")) { width = Math.max(60, r.width - dx); left = r.left + (r.width - width); }
-      if (corner.includes("n")) { height = Math.max(30, r.height - dy); top = r.top + (r.height - height); }
-      roiBox.style.left = left + "px";
-      roiBox.style.top = top + "px";
-      roiBox.style.width = width + "px";
-      roiBox.style.height = height + "px";
-    });
-  }
-  enableCornerDrag("h-nw","nw");
-  enableCornerDrag("h-ne","ne");
-  enableCornerDrag("h-sw","sw");
-  enableCornerDrag("h-se","se");
-
-  // ---------------- OCR loop ----------------
-  let worker = null;
-  let reading = false;
-  let loopTimer = null;
-  let candidateValue = null;
-  let candidateCount = 0;
+  // ---------------- Reconhecimento de fala ----------------
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let recognition = null;
+  let listening = false;
+  let shouldKeepListening = false;
   let lastTriggered = null;
   let cooldownUntil = 0;
 
-  const btnStart = document.getElementById("btnStart");
+  const btnListen = document.getElementById("btnListen");
 
-  async function ensureWorker(){
-    if (worker) return worker;
-    worker = await Tesseract.createWorker("eng");
-    await worker.setParameters({
-      tessedit_char_whitelist: "0123456789",
-      tessedit_pageseg_mode: "7"
-    });
-    return worker;
-  }
+  function setupRecognition(){
+    recognition = new SpeechRecognition();
+    recognition.lang = "en-US";
+    recognition.continuous = true;
+    recognition.interimResults = false;
 
-  function captureRoiCanvas(){
-    const wrapRect = camWrap.getBoundingClientRect();
-    const scaleX = video.videoWidth / wrapRect.width;
-    const scaleY = video.videoHeight / wrapRect.height;
-    const bx = roiBox.offsetLeft * scaleX;
-    const by = roiBox.offsetTop * scaleY;
-    const bw = roiBox.offsetWidth * scaleX;
-    const bh = roiBox.offsetHeight * scaleY;
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.max(1, bw);
-    canvas.height = Math.max(1, bh);
-    const ctx = canvas.getContext("2d");
-    ctx.drawImage(video, bx, by, bw, bh, 0, 0, canvas.width, canvas.height);
-    return canvas;
-  }
+    recognition.onstart = () => {
+      listening = true;
+      micIcon.classList.add("pulse");
+      statusText.textContent = "Ouvindo o radar...";
+    };
 
-  async function ocrLoop(){
-    if (!reading) return;
-    try {
-      const canvas = captureRoiCanvas();
-      const w = await ensureWorker();
-      const { data } = await w.recognize(canvas);
-      const digits = (data.text.match(/\d+/g) || []).join("");
-      const value = digits ? parseInt(digits, 10) : null;
-      handleReading(value);
-    } catch(e){ console.warn("OCR erro", e); }
-    loopTimer = setTimeout(ocrLoop, 700);
-  }
-
-  function handleReading(value){
-    const now = Date.now();
-    if (value === null || value <= 0 || value > 150){
-      candidateValue = null; candidateCount = 0;
-      return;
-    }
-    if (value === candidateValue){
-      candidateCount++;
-    } else {
-      candidateValue = value; candidateCount = 1;
-    }
-    if (candidateCount >= 2 && now >= cooldownUntil){
-      if (lastTriggered === null || Math.abs(value - lastTriggered) >= 2){
+    recognition.onresult = (event) => {
+      const res = event.results[event.results.length - 1];
+      const text = res[0].transcript;
+      transcriptDebug.textContent = 'Ouvi: "' + text + '"';
+      const value = parseSpeedFromText(text);
+      const now = Date.now();
+      if (value !== null && now >= cooldownUntil){
+        cooldownUntil = now + 1500;
         lastTriggered = value;
-        cooldownUntil = now + 3000;
         triggerFeedback(value);
       }
+    };
+
+    recognition.onerror = (e) => {
+      console.warn("Erro no reconhecimento:", e.error);
+      // 'no-speech' é normal (silêncio entre passagens), apenas reinicia
+    };
+
+    recognition.onend = () => {
+      listening = false;
+      micIcon.classList.remove("pulse");
+      if (shouldKeepListening){
+        // iOS costuma encerrar a sessão sozinho; reinicia automaticamente
+        setTimeout(() => { if (shouldKeepListening) safeStart(); }, 300);
+      }
+    };
+  }
+
+  function safeStart(){
+    try { recognition.start(); } catch(e){ /* já pode estar rodando */ }
+  }
+
+  async function startListening(){
+    if (!SpeechRecognition){
+      alert("Este navegador não suporta reconhecimento de fala. Use o Safari no iPhone.");
+      return;
     }
-  }
-
-  function startReading(){
-    reading = true;
-    btnStart.textContent = "⏸️ Parar leitura";
-    btnStart.classList.add("stop");
-    lastReading.textContent = "Lendo o visor do radar...";
-    ocrLoop();
-  }
-  function stopReading(){
-    reading = false;
-    if (loopTimer) clearTimeout(loopTimer);
-    btnStart.textContent = "▶️ Iniciar leitura";
-    btnStart.classList.remove("stop");
-  }
-  btnStart.onclick = () => { reading ? stopReading() : startReading(); };
-
-  // ---------------- Entrada manual ----------------
-  const btnManual = document.getElementById("btnManual");
-  const manualPanel = document.getElementById("manualPanel");
-  const manualInput = document.getElementById("manualInput");
-  document.getElementById("manualGo").onclick = () => {
-    const v = parseInt(manualInput.value, 10);
-    if (!isNaN(v) && v > 0){
-      lastTriggered = v;
-      cooldownUntil = Date.now() + 3000;
-      triggerFeedback(v);
-      manualInput.value = "";
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach(t => t.stop());
+    } catch(e){
+      alert("Preciso da permissão do microfone pra funcionar.");
+      return;
     }
-  };
-  btnManual.onclick = () => {
-    manualPanel.style.display = manualPanel.style.display === "flex" ? "none" : "flex";
-  };
+    if (!recognition) setupRecognition();
+    shouldKeepListening = true;
+    safeStart();
+    btnListen.textContent = "⏸️ Parar";
+    btnListen.classList.add("stop");
+  }
 
-  // desbloqueia a síntese de voz no iOS (precisa de interação do usuário)
+  function stopListening(){
+    shouldKeepListening = false;
+    if (recognition) { try { recognition.stop(); } catch(e){} }
+    micIcon.classList.remove("pulse");
+    statusText.textContent = 'Toque em "Iniciar" e encoste o celular perto do radar';
+    btnListen.textContent = "▶️ Iniciar";
+    btnListen.classList.remove("stop");
+  }
+
+  btnListen.onclick = () => { shouldKeepListening ? stopListening() : startListening(); };
+
+  // desbloqueia a síntese de voz e o áudio no iOS (precisa de interação do usuário)
   document.body.addEventListener("touchstart", function unlock(){
     speechSynthesis.speak(new SpeechSynthesisUtterance(""));
     actx.resume();
