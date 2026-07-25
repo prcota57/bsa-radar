@@ -118,14 +118,20 @@
   const AudioCtx = window.AudioContext || window.webkitAudioContext;
   const actx = new AudioCtx();
   let palmasBuffer = null;
-  async function loadPalmas(){
+  let trombetaBuffer = null;
+  async function loadSounds(){
     try {
       const resp = await fetch("https://raw.githubusercontent.com/prcota57/bsa-alerta/main/sounds/palmas-simples.wav");
       const arr = await resp.arrayBuffer();
       palmasBuffer = await actx.decodeAudioData(arr);
     } catch(e){ console.warn("Não foi possível carregar som de palmas", e); }
+    try {
+      const resp2 = await fetch("https://raw.githubusercontent.com/prcota57/bsa-alerta/main/sounds/fail-trombeta.wav");
+      const arr2 = await resp2.arrayBuffer();
+      trombetaBuffer = await actx.decodeAudioData(arr2);
+    } catch(e){ console.warn("Não foi possível carregar som de trombeta", e); }
   }
-  loadPalmas();
+  loadSounds();
 
   function playBuffer(buffer, gainValue, rate){
     if(!buffer) return 0;
@@ -198,7 +204,7 @@
     if (!currentLevel) return;
     const tier = getTier(speed, currentLevel);
     let soundDuration = 0;
-    if (tier === 0) soundDuration = playQuase();
+    if (tier === 0) soundDuration = playBuffer(trombetaBuffer, 1, 1);
     else if (tier === 1) soundDuration = 0;
     else if (tier === 2) soundDuration = playBuffer(palmasBuffer, 1, 1);
     else if (tier === 3) soundDuration = playBuffer(palmasBuffer, 1.3, 1.08);
@@ -217,13 +223,22 @@
     hundred:100
   };
 
+  const UNIT_WORDS = new Set(["kph","kmh","km","kilometers","kilometer","per","hour","hours","mph","miles","mile","and","a"]);
+
   function parseSpeedFromText(text){
     const clean = text.toLowerCase().replace(/[^a-z0-9\s]/g,"").trim();
     if (!clean) return null;
     const words = clean.split(/\s+/);
     if (words.length > 6) return null; // frase longa demais, provavelmente não é o radar
 
-    // 1) tenta achar dígitos diretos, ex: "50" ou "fifty (50)"
+    // só aceita se TODAS as palavras forem número (dígito ou palavra numérica) ou palavra de unidade
+    // isso ignora falas de crianças, música e outros ruídos que não sejam só "o número"
+    for (const w of words){
+      const isDigit = /^\d+$/.test(w);
+      if (!isDigit && !(w in WORD_NUM) && !UNIT_WORDS.has(w)) return null;
+    }
+
+    // 1) tenta achar dígitos diretos, ex: "50"
     const digitMatch = clean.match(/\d+/);
     if (digitMatch){
       const v = parseInt(digitMatch[0], 10);
@@ -231,7 +246,7 @@
     }
 
     // 2) tenta compor a partir de palavras numéricas em inglês
-    let total = 0, current = 0, found = false;
+    let current = 0, found = false;
     for (const w of words){
       if (w in WORD_NUM){
         found = true;
@@ -240,8 +255,7 @@
         else { current += val; }
       }
     }
-    total = current;
-    if (found && total >= 0 && total <= 150) return total;
+    if (found && current >= 0 && current <= 150) return current;
     return null;
   }
 
@@ -275,6 +289,8 @@
   let shouldKeepListening = false;
   let lastTriggered = null;
   let cooldownUntil = 0;
+  let restartCount = 0;
+  let sessionStartedAt = 0;
 
   const btnListen = document.getElementById("btnListen");
 
@@ -286,6 +302,7 @@
 
     recognition.onstart = () => {
       listening = true;
+      sessionStartedAt = Date.now();
       micIcon.classList.add("pulse");
       statusText.textContent = "Ouvindo o radar...";
     };
@@ -306,15 +323,22 @@
     };
 
     recognition.onerror = (e) => {
-      console.warn("Erro no reconhecimento:", e.error);
-      // 'no-speech' é normal (silêncio entre passagens), apenas reinicia
+      transcriptDebug.textContent = "Erro no reconhecimento: " + e.error;
+      // 'no-speech' é normal (silêncio entre passagens); outros erros só ficam registrados,
+      // o onend cuida de reiniciar de qualquer forma
     };
 
     recognition.onend = () => {
       listening = false;
       micIcon.classList.remove("pulse");
       if (shouldKeepListening){
-        // iOS costuma encerrar a sessão sozinho; reinicia o mais rápido possível pra não perder falas
+        restartCount++;
+        // a cada 20 reinícios (ou sessão com mais de 3 min), recria o objeto do zero —
+        // ajuda a evitar degradação do reconhecimento em uso contínuo por muito tempo
+        if (restartCount >= 20 || (Date.now() - sessionStartedAt) > 180000){
+          restartCount = 0;
+          setupRecognition();
+        }
         safeStart();
       }
     };
