@@ -333,10 +333,14 @@
     };
 
     recognition.onresult = (event) => {
-      // varre todos os resultados novos (parciais e finais) desde o último índice processado
+      // varre todos os resultados novos desde o último índice processado
       for (let i = event.resultIndex; i < event.results.length; i++){
-        const text = event.results[i][0].transcript;
-        transcriptDebug.textContent = 'Ouvi: "' + text + '"';
+        const result = event.results[i];
+        const text = result[0].transcript;
+        transcriptDebug.textContent = result.isFinal
+          ? 'Ouvi: "' + text + '"'
+          : 'Ouvindo: "' + text + '..."';
+        if (!result.isFinal) continue; // ignora pedaços parciais — evita "vinte" disparar antes de "vinte e cinco" terminar
         const value = parseSpeedFromText(text);
         const now = Date.now();
         if (value !== null && now >= cooldownUntil){
