@@ -203,7 +203,8 @@
     else if (tier === 2) soundDuration = playBuffer(palmasBuffer, 1, 1);
     else if (tier === 3) soundDuration = playBuffer(palmasBuffer, 1.3, 1.08);
     else if (tier === 4) { soundDuration = playFanfarra(); playBuffer(palmasBuffer, 1.2, 1); }
-    setTimeout(() => speak(PHRASES[tier]), Math.max(soundDuration*1000, 0) + 120);
+    const falaCompleta = `${speed} quilômetros por hora! ${PHRASES[tier]}`;
+    setTimeout(() => speak(falaCompleta), Math.max(soundDuration*1000, 0) + 120);
     lastReading.innerHTML = `<b>${speed} km/h</b>${PHRASES[tier]}`;
   }
 
@@ -281,7 +282,7 @@
     recognition = new SpeechRecognition();
     recognition.lang = "en-US";
     recognition.continuous = true;
-    recognition.interimResults = false;
+    recognition.interimResults = true; // pega o resultado ainda "no meio", antes de fechar a frase
 
     recognition.onstart = () => {
       listening = true;
@@ -290,15 +291,17 @@
     };
 
     recognition.onresult = (event) => {
-      const res = event.results[event.results.length - 1];
-      const text = res[0].transcript;
-      transcriptDebug.textContent = 'Ouvi: "' + text + '"';
-      const value = parseSpeedFromText(text);
-      const now = Date.now();
-      if (value !== null && now >= cooldownUntil){
-        cooldownUntil = now + 1500;
-        lastTriggered = value;
-        triggerFeedback(value);
+      // varre todos os resultados novos (parciais e finais) desde o último índice processado
+      for (let i = event.resultIndex; i < event.results.length; i++){
+        const text = event.results[i][0].transcript;
+        transcriptDebug.textContent = 'Ouvi: "' + text + '"';
+        const value = parseSpeedFromText(text);
+        const now = Date.now();
+        if (value !== null && now >= cooldownUntil){
+          cooldownUntil = now + 1500;
+          lastTriggered = value;
+          triggerFeedback(value);
+        }
       }
     };
 
@@ -311,14 +314,15 @@
       listening = false;
       micIcon.classList.remove("pulse");
       if (shouldKeepListening){
-        // iOS costuma encerrar a sessão sozinho; reinicia automaticamente
-        setTimeout(() => { if (shouldKeepListening) safeStart(); }, 300);
+        // iOS costuma encerrar a sessão sozinho; reinicia o mais rápido possível pra não perder falas
+        safeStart();
       }
     };
   }
 
   function safeStart(){
-    try { recognition.start(); } catch(e){ /* já pode estar rodando */ }
+    try { recognition.start(); }
+    catch(e){ setTimeout(() => { try { recognition.start(); } catch(e2){} }, 250); }
   }
 
   async function startListening(){
