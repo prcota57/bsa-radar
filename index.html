@@ -325,6 +325,24 @@
     catch(e){ setTimeout(() => { try { recognition.start(); } catch(e2){} }, 250); }
   }
 
+  // ---------------- Wake Lock (impede a tela de bloquear/economizar energia) ----------------
+  let wakeLock = null;
+  async function requestWakeLock(){
+    try {
+      if ("wakeLock" in navigator){
+        wakeLock = await navigator.wakeLock.request("screen");
+        wakeLock.addEventListener("release", () => { wakeLock = null; });
+      }
+    } catch(e){ console.warn("Wake lock falhou:", e); }
+  }
+  document.addEventListener("visibilitychange", async () => {
+    // a trava é liberada automaticamente quando a tela apaga; pede de novo ao voltar
+    if (shouldKeepListening && document.visibilityState === "visible" && !wakeLock){
+      await requestWakeLock();
+      if (!listening) safeStart();
+    }
+  });
+
   async function startListening(){
     if (!SpeechRecognition){
       alert("Este navegador não suporta reconhecimento de fala. Use o Safari no iPhone.");
@@ -337,6 +355,7 @@
       alert("Preciso da permissão do microfone pra funcionar.");
       return;
     }
+    await requestWakeLock();
     if (!recognition) setupRecognition();
     shouldKeepListening = true;
     safeStart();
@@ -347,6 +366,7 @@
   function stopListening(){
     shouldKeepListening = false;
     if (recognition) { try { recognition.stop(); } catch(e){} }
+    if (wakeLock) { wakeLock.release().catch(()=>{}); wakeLock = null; }
     micIcon.classList.remove("pulse");
     statusText.textContent = 'Toque em "Iniciar" e encoste o celular perto do radar';
     btnListen.textContent = "▶️ Iniciar";
