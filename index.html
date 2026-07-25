@@ -40,11 +40,11 @@
 
   #centerStage {
     flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
-    padding: 20px; gap: 18px; text-align: center;
+    padding: 20px; gap: 14px; text-align: center;
   }
   #micIcon {
-    width: 140px; height: 140px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
-    font-size: 56px; background: radial-gradient(circle, rgba(33,224,101,0.25), rgba(33,224,101,0.02));
+    width: 120px; height: 120px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 48px; background: radial-gradient(circle, rgba(33,224,101,0.25), rgba(33,224,101,0.02));
     border: 3px solid #21e065; transition: transform .15s ease;
   }
   #micIcon.pulse { transform: scale(1.08); box-shadow: 0 0 40px rgba(33,224,101,0.5); }
@@ -52,6 +52,13 @@
   #lastReading { font-size: 16px; min-height: 50px; }
   #lastReading b { font-size: 30px; display:block; margin-bottom:2px; }
   #transcriptDebug { font-size: 12px; color: #5f8a6d; min-height: 16px; }
+
+  #volWrap { width: 100%; max-width: 320px; }
+  #volMeter { width: 100%; height: 14px; background: rgba(255,255,255,0.08); border-radius: 999px; overflow: hidden; position: relative; }
+  #volFill { height: 100%; width: 0%; background: #21e065; border-radius: 999px; transition: width .05s linear; }
+  #volThresholdMark { position: absolute; top: -3px; width: 3px; height: 20px; background: #fff; }
+  #sensRow { display:flex; align-items:center; gap:10px; margin-top:8px; font-size:12px; color:#9fc9ab; }
+  #sensRow input { flex:1; }
 
   #bottomBar {
     padding: 14px 16px calc(14px + env(safe-area-inset-bottom));
@@ -83,13 +90,20 @@
     </div>
     <div id="centerStage">
       <div id="micIcon">🎤</div>
-      <div id="statusText">Toque em "Iniciar" e encoste o celular perto do radar</div>
+      <div id="statusText">Toque em "Iniciar" e encoste o microfone na boca do alto-falante</div>
+      <div id="volWrap">
+        <div id="volMeter"><div id="volFill"></div><div id="volThresholdMark"></div></div>
+        <div id="sensRow">
+          <span>Sensibilidade</span>
+          <input type="range" id="sensSlider" min="1" max="60" value="18">
+        </div>
+      </div>
       <div id="lastReading"></div>
       <div id="transcriptDebug"></div>
     </div>
     <div id="bottomBar">
       <button class="action" id="btnListen">▶️ Iniciar</button>
-      <div id="hint">Celular perto do alto-falante do radar · som sai pela caixa Bluetooth</div>
+      <div id="hint">Fica "de olho" no volume e só liga o reconhecimento quando ouvir um som alto perto</div>
     </div>
   </div>
 
@@ -225,7 +239,7 @@
     function retomarEscuta(){
       if (!suppressAutoRestart) return; // já foi retomado (evita chamar 2x)
       suppressAutoRestart = false;
-      if (shouldKeepListening && !listening) safeStart();
+      if (shouldKeepListening) statusText.textContent = "👂 Monitorando o volume...";
     }
 
     setTimeout(() => {
@@ -309,38 +323,46 @@
   // ---------------- Reconhecimento de fala ----------------
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   let recognition = null;
-  let listening = false;
-  let shouldKeepListening = false;
+  let listening = false;          // true = rajada de reconhecimento ativa agora
+  let shouldKeepListening = false; // true = app "ligado" (monitorando volume)
   let lastTriggered = null;
   let cooldownUntil = 0;
   let restartCount = 0;
   let sessionStartedAt = 0;
   let suppressAutoRestart = false;
+  let burstTimeoutId = null;
 
   const btnListen = document.getElementById("btnListen");
+  const volFill = document.getElementById("volFill");
+  const volThresholdMark = document.getElementById("volThresholdMark");
+  const sensSlider = document.getElementById("sensSlider");
+
+  function endBurst(){
+    if (burstTimeoutId){ clearTimeout(burstTimeoutId); burstTimeoutId = null; }
+    if (recognition){ try { recognition.stop(); } catch(e){} }
+  }
 
   function setupRecognition(){
     recognition = new SpeechRecognition();
     recognition.lang = "en-US";
     recognition.continuous = true;
-    recognition.interimResults = true; // pega o resultado ainda "no meio", antes de fechar a frase
+    recognition.interimResults = true;
 
     recognition.onstart = () => {
       listening = true;
       sessionStartedAt = Date.now();
       micIcon.classList.add("pulse");
-      statusText.textContent = "Ouvindo o radar...";
+      statusText.textContent = "🔴 Som detectado — ouvindo...";
     };
 
     recognition.onresult = (event) => {
-      // varre todos os resultados novos desde o último índice processado
       for (let i = event.resultIndex; i < event.results.length; i++){
         const result = event.results[i];
         const text = result[0].transcript;
         transcriptDebug.textContent = result.isFinal
           ? 'Ouvi: "' + text + '"'
           : 'Ouvindo: "' + text + '..."';
-        if (!result.isFinal) continue; // ignora pedaços parciais — evita "vinte" disparar antes de "vinte e cinco" terminar
+        if (!result.isFinal) continue;
         const value = parseSpeedFromText(text);
         const now = Date.now();
         if (value !== null && now >= cooldownUntil){
@@ -348,35 +370,77 @@
           lastTriggered = value;
           triggerFeedback(value);
         }
+        endBurst(); // já processou o que precisava, volta a só monitorar o volume
       }
     };
 
     recognition.onerror = (e) => {
-      transcriptDebug.textContent = "Erro no reconhecimento: " + e.error;
-      // 'no-speech' é normal (silêncio entre passagens); outros erros só ficam registrados,
-      // o onend cuida de reiniciar de qualquer forma
+      if (e.error !== "no-speech" && e.error !== "aborted"){
+        transcriptDebug.textContent = "Erro no reconhecimento: " + e.error;
+      }
     };
 
     recognition.onend = () => {
       listening = false;
       micIcon.classList.remove("pulse");
-      if (suppressAutoRestart) return; // está tocando som/fala agora; quem reinicia é o retomarEscuta()
-      if (shouldKeepListening){
-        restartCount++;
-        // a cada 20 reinícios (ou sessão com mais de 3 min), recria o objeto do zero —
-        // ajuda a evitar degradação do reconhecimento em uso contínuo por muito tempo
-        if (restartCount >= 20 || (Date.now() - sessionStartedAt) > 180000){
-          restartCount = 0;
-          setupRecognition();
-        }
-        safeStart();
+      if (shouldKeepListening && !suppressAutoRestart){
+        statusText.textContent = "👂 Monitorando o volume...";
       }
     };
   }
 
   function safeStart(){
+    if (listening) return;
     try { recognition.start(); }
-    catch(e){ setTimeout(() => { try { recognition.start(); } catch(e2){} }, 250); }
+    catch(e){ setTimeout(() => { try { recognition.start(); } catch(e2){} }, 150); }
+  }
+
+  function startBurst(){
+    if (!recognition) setupRecognition();
+    if (listening) return;
+    restartCount++;
+    if (restartCount >= 40){
+      restartCount = 0;
+      setupRecognition();
+    }
+    safeStart();
+    // se não conseguir nenhum resultado em alguns segundos, desiste e volta a monitorar
+    burstTimeoutId = setTimeout(() => { endBurst(); }, 4000);
+  }
+
+  // ---------------- Monitor de volume (liga o reconhecimento só quando o som fica alto) ----------------
+  let micStream = null;
+  let analyser = null;
+  let monitorTimer = null;
+  let volCooldownUntil = 0;
+  let sensitivity = parseInt(sensSlider.value, 10); // 1 (mais sensível) a 60 (menos sensível)
+
+  sensSlider.addEventListener("input", () => {
+    sensitivity = parseInt(sensSlider.value, 10);
+    updateThresholdMark();
+  });
+  function thresholdValue(){ return sensitivity; } // escala 0-100 do getByteFrequencyData médio
+  function updateThresholdMark(){
+    volThresholdMark.style.left = thresholdValue() + "%";
+  }
+  updateThresholdMark();
+
+  function monitorVolume(){
+    if (!analyser) return;
+    const data = new Uint8Array(analyser.frequencyBinCount);
+    analyser.getByteFrequencyData(data);
+    let sum = 0;
+    for (let i = 0; i < data.length; i++) sum += data[i];
+    const avg = sum / data.length; // 0-255
+    const pct = Math.min(100, Math.round((avg/255)*100*3)); // realça a escala pra ficar visível
+    volFill.style.width = pct + "%";
+    volFill.style.background = pct > thresholdValue() ? "#21e065" : "#3a6b4a";
+
+    const now = Date.now();
+    if (shouldKeepListening && !listening && pct > thresholdValue() && now >= volCooldownUntil){
+      volCooldownUntil = now + 800; // evita disparar várias vezes seguidas pro mesmo som
+      startBurst();
+    }
   }
 
   // ---------------- Wake Lock (impede a tela de bloquear/economizar energia) ----------------
@@ -390,10 +454,8 @@
     } catch(e){ console.warn("Wake lock falhou:", e); }
   }
   document.addEventListener("visibilitychange", async () => {
-    // a trava é liberada automaticamente quando a tela apaga; pede de novo ao voltar
     if (shouldKeepListening && document.visibilityState === "visible" && !wakeLock){
       await requestWakeLock();
-      if (!listening) safeStart();
     }
   });
 
@@ -403,26 +465,38 @@
       return;
     }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      stream.getTracks().forEach(t => t.stop());
+      micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch(e){
       alert("Preciso da permissão do microfone pra funcionar.");
       return;
     }
     await requestWakeLock();
-    if (!recognition) setupRecognition();
+    try { await actx.resume(); } catch(e){}
+
+    const source = actx.createMediaStreamSource(micStream);
+    analyser = actx.createAnalyser();
+    analyser.fftSize = 512;
+    source.connect(analyser); // não conecta no destination, só analisa (sem eco)
+
+    if (monitorTimer) clearInterval(monitorTimer);
+    monitorTimer = setInterval(monitorVolume, 100);
+
     shouldKeepListening = true;
-    safeStart();
+    statusText.textContent = "👂 Monitorando o volume...";
     btnListen.textContent = "⏸️ Parar";
     btnListen.classList.add("stop");
   }
 
   function stopListening(){
     shouldKeepListening = false;
-    if (recognition) { try { recognition.stop(); } catch(e){} }
+    endBurst();
+    if (monitorTimer){ clearInterval(monitorTimer); monitorTimer = null; }
+    if (micStream){ micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+    analyser = null;
     if (wakeLock) { wakeLock.release().catch(()=>{}); wakeLock = null; }
     micIcon.classList.remove("pulse");
-    statusText.textContent = 'Toque em "Iniciar" e encoste o celular perto do radar';
+    volFill.style.width = "0%";
+    statusText.textContent = 'Toque em "Iniciar" e encoste o microfone na boca do alto-falante';
     btnListen.textContent = "▶️ Iniciar";
     btnListen.classList.remove("stop");
   }
