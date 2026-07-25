@@ -178,16 +178,18 @@
     });
     return notes.length*0.11 + 0.4;
   }
-  function speak(text){
+  function speak(text, onDone){
     try {
+      speechSynthesis.cancel(); // limpa qualquer fila travada antes de falar
       const u = new SpeechSynthesisUtterance(text);
       u.lang = "pt-BR";
       u.rate = 1.0;
       const voices = speechSynthesis.getVoices();
       const ptVoice = voices.find(v => v.lang && v.lang.toLowerCase().startsWith("pt"));
       if (ptVoice) u.voice = ptVoice;
+      if (onDone){ u.onend = onDone; u.onerror = onDone; }
       speechSynthesis.speak(u);
-    } catch(e){ console.warn(e); }
+    } catch(e){ console.warn(e); if (onDone) onDone(); }
   }
 
   function getTier(speed, level){
@@ -208,7 +210,8 @@
     // de áudio enquanto o microfone do reconhecimento de fala está ligado)
     try { await actx.resume(); } catch(e){}
     // pausa o microfone bem na hora de tocar som/fala, pra evitar disputa entre
-    // entrada (mic) e saída (som) de áudio no iOS; ele reinicia sozinho pelo onend
+    // entrada (mic) e saída (som) de áudio no iOS; só volta a ouvir quando a fala realmente terminar
+    suppressAutoRestart = true;
     if (recognition && listening){ try { recognition.stop(); } catch(e){} }
 
     let soundDuration = 0;
@@ -218,7 +221,20 @@
     else if (tier === 3) soundDuration = playBuffer(palmasBuffer, 1.3, 1.08);
     else if (tier === 4) { soundDuration = playFanfarra(); playBuffer(palmasBuffer, 1.2, 1); }
     const falaCompleta = `${speed} quilômetros por hora! ${PHRASES[tier]}`;
-    setTimeout(() => speak(falaCompleta), Math.max(soundDuration*1000, 0) + 120);
+
+    function retomarEscuta(){
+      if (!suppressAutoRestart) return; // já foi retomado (evita chamar 2x)
+      suppressAutoRestart = false;
+      if (shouldKeepListening && !listening) safeStart();
+    }
+
+    setTimeout(() => {
+      speak(falaCompleta, retomarEscuta);
+      // rede de segurança: caso o evento de fim de fala não dispare (bug conhecido do iOS),
+      // retoma a escuta de qualquer forma depois de um tempo generoso
+      setTimeout(retomarEscuta, 6000);
+    }, Math.max(soundDuration*1000, 0) + 120);
+
     lastReading.innerHTML = `<b>${speed} km/h</b>${PHRASES[tier]}`;
   }
 
@@ -299,6 +315,7 @@
   let cooldownUntil = 0;
   let restartCount = 0;
   let sessionStartedAt = 0;
+  let suppressAutoRestart = false;
 
   const btnListen = document.getElementById("btnListen");
 
@@ -339,6 +356,7 @@
     recognition.onend = () => {
       listening = false;
       micIcon.classList.remove("pulse");
+      if (suppressAutoRestart) return; // está tocando som/fala agora; quem reinicia é o retomarEscuta()
       if (shouldKeepListening){
         restartCount++;
         // a cada 20 reinícios (ou sessão com mais de 3 min), recria o objeto do zero —
@@ -413,6 +431,12 @@
     actx.resume();
     document.body.removeEventListener("touchstart", unlock);
   }, {once:true});
+
+  // bug conhecido do iOS: a síntese de voz às vezes fica "pausada" sozinha sem avisar;
+  // essa checagem periódica destrava sem precisar reiniciar o app
+  setInterval(() => {
+    if (speechSynthesis.paused) speechSynthesis.resume();
+  }, 3000);
 
 })();
 </script>
