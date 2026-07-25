@@ -200,9 +200,17 @@
   }
 
   const lastReading = document.getElementById("lastReading");
-  function triggerFeedback(speed){
+  async function triggerFeedback(speed){
     if (!currentLevel) return;
     const tier = getTier(speed, currentLevel);
+
+    // garante que o áudio de saída está ativo (iOS às vezes suspende o contexto
+    // de áudio enquanto o microfone do reconhecimento de fala está ligado)
+    try { await actx.resume(); } catch(e){}
+    // pausa o microfone bem na hora de tocar som/fala, pra evitar disputa entre
+    // entrada (mic) e saída (som) de áudio no iOS; ele reinicia sozinho pelo onend
+    if (recognition && listening){ try { recognition.stop(); } catch(e){} }
+
     let soundDuration = 0;
     if (tier === 0) soundDuration = playBuffer(trombetaBuffer, 1, 1);
     else if (tier === 1) soundDuration = 0;
